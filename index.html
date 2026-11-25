@@ -185,8 +185,12 @@ window.__fb=(function(){
  if(hasCfg&&typeof firebase!=="undefined"){
   try{
    firebase.initializeApp(cfg);auth=firebase.auth();db=firebase.firestore();
-   authReady=new Promise(function(res){var done=false;var un=auth.onAuthStateChanged(function(u){curUid=u?u.uid:null;if(!done){done=true;res()}},function(){if(!done){done=true;res()}})});
-   auth.getRedirectResult().catch(function(){});
+   /* Wait for the redirect result BEFORE reading auth state: after Google sign-in
+      the user is only restored once getRedirectResult() settles, and the first
+      onAuthStateChanged event can fire with null before that. */
+   authReady=auth.getRedirectResult().catch(function(){return null}).then(function(){
+    return new Promise(function(res){var done=false;var un=auth.onAuthStateChanged(function(u){curUid=u?u.uid:null;if(!done){done=true;try{un()}catch(e){}res()}},function(){if(!done){done=true;res()}})});
+   });
   }catch(e){authReady=Promise.resolve()}
  }else authReady=Promise.resolve();
  function nsDb(){return authReady.then(function(){
