@@ -207,7 +207,13 @@ window.__fb=(function(){
   uid:function(){return curUid},
   user:function(){return auth?auth.currentUser:null},
   whenReady:function(){return authReady},
-  signIn:function(){if(!auth)return Promise.reject(new Error("no-config"));var p=new firebase.auth.GoogleAuthProvider();return auth.signInWithRedirect(p)},
+  /* Popup first (works when authDomain differs from the hosting origin, since
+     redirect storage can be partitioned/blocked); fall back to redirect only
+     when the popup itself is blocked or unsupported. */
+  signIn:function(){if(!auth)return Promise.reject(new Error("no-config"));var p=new firebase.auth.GoogleAuthProvider();
+   return auth.signInWithPopup(p).catch(function(e){
+    if(e&&(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment"))return auth.signInWithRedirect(p);
+    throw e})},
   signOut:function(){return auth?auth.signOut():Promise.resolve()}
  };
 })();
@@ -2144,7 +2150,7 @@ if(vs){var ac=el("div","wcard",null);ac.id="accCard";vs.insertBefore(ac,vs.first
     if(!fb.configured){st.textContent="Not set up. Your progress is saved on this device only. To sync across devices, tap \u2018Set up cloud sync\u2019 on the start screen.";return}
     if(!fb.uid()){st.textContent="Cloud sync is configured but you are not signed in.";
      var gi=el("button","sbtn",{textContent:"\uD83D\uDD11 Sign in with Google"});gi.style.marginTop="8px";
-     gi.onclick=function(){fb.signIn().catch(function(){st.textContent="Sync needs the app\u2019s web link (https), it can\u2019t sign in from a saved file"})};ac.appendChild(gi);return}
+     gi.onclick=function(){gi.disabled=true;fb.signIn().catch(function(e){gi.disabled=false;st.textContent=e&&e.code?("Sign-in failed ("+e.code+"). Take a screenshot and send it."):e&&e.message&&/no-config/.test(e.message)?"Sync needs the app\u2019s web link (https), it can\u2019t sign in from a saved file":"Sign-in failed, please try again"})};ac.appendChild(gi);return}
     var u=fb.user();st.textContent="Signed in as "+((u&&u.email)||"your Google account")+". Progress syncs across your devices.";
     var so=el("button","sbtn",{textContent:"Sign out"});so.style.marginTop="8px";
     so.onclick=function(){fb.signOut().then(function(){location.reload()})};ac.appendChild(so)};
@@ -2184,7 +2190,7 @@ function showSplash(force){
    panel.appendChild(ta);panel.appendChild(sv);cbox.appendChild(cbtn);cbox.appendChild(panel);
   }else if(!fb.uid()){
    var gi=el("button","spc-google",{textContent:"\uD83D\uDD11 Sign in with Google to sync your devices"});
-   gi.onclick=function(){fb.signIn().catch(function(){gi.textContent="Sync needs the app\u2019s web link (https), it can\u2019t sign in from a saved file"})};
+   gi.onclick=function(){fb.signIn().catch(function(e){gi.textContent=e&&e.code?("Sign-in failed ("+e.code+")"):"Sign-in failed, please try again"})};
    cbox.appendChild(gi);
    if(location.protocol==="file:")cbox.appendChild(el("div","spc-hint",{textContent:"Sync turns on once you open the app from its web link."}));
   }else{
