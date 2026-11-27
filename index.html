@@ -2170,8 +2170,8 @@ if(vs){var ac=el("div","wcard",null);ac.id="accCard";vs.insertBefore(ac,vs.first
      var gi=el("button","sbtn",{textContent:"\uD83D\uDD11 Sign in with Google"});gi.style.marginTop="8px";
      gi.onclick=function(){gi.disabled=true;fb.signIn().catch(function(e){gi.disabled=false;st.textContent=e&&e.code?("Sign-in failed ("+e.code+"). Take a screenshot and send it."):e&&e.message&&/no-config/.test(e.message)?"Sync needs the app\u2019s web link (https), it can\u2019t sign in from a saved file":"Sign-in failed, please try again"})};ac.appendChild(gi);return}
     var u=fb.user();st.textContent="Signed in as "+((u&&u.email)||"your Google account")+". Progress syncs across your devices.";
-    var so=el("button","sbtn",{textContent:"Sign out"});so.style.marginTop="8px";
-    so.onclick=function(){fb.signOut().then(function(){location.reload()})};ac.appendChild(so)};
+    var so=el("button","sbtn",{textContent:"Sign out / \u062a\u0633\u062c\u064a\u0644 \u062e\u0631\u0648\u062c"});so.style.marginTop="10px";so.style.width="100%";so.style.background="#ef6a5f";so.style.color="#fff";so.style.fontWeight="700";
+    so.onclick=function(){fb.signOut().then(function(){location.hash="splash";location.reload()})};ac.appendChild(so)};
    if(fb.whenReady)fb.whenReady().then(fill);else fill()})();
  }
 
@@ -2215,7 +2215,7 @@ function showSplash(force){
    var u=fb.user();
    cbox.appendChild(el("div","spc-hint",{textContent:"\u2601\uFE0F Signed in as "+((u&&u.email)||"your Google account")+" \u2014 progress syncs across your devices."}));
    var so=el("button","spc-link",{textContent:"Sign out"});
-   so.onclick=function(){fb.signOut().then(function(){location.reload()})};
+   so.onclick=function(){fb.signOut().then(function(){location.hash="splash";location.reload()})};
    cbox.appendChild(so);
   }
  }
