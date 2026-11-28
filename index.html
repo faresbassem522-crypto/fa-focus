@@ -285,6 +285,19 @@ window.__fb=(function(){
 <div id="wkSum"></div>
 <div class="wkwrap"><div id="wkGrid" class="wkgrid"></div></div>
 </div>
+<div id="viewDay" hidden>
+<div class="dvbar"><button id="dvPrev" class="sbtn">‹</button><div id="dvTitle"></div><button id="dvNext" class="sbtn">›</button><button id="dvToday" class="sbtn">Today</button></div>
+<div class="dvsub"><input type="date" id="dvDate"><button id="dvNowBtn" class="sbtn">Now</button><span id="dvSum"></span></div>
+<div class="dvwrap"><div class="dvgut" id="dvGut"></div><div class="dvgrid" id="dvGrid"></div></div>
+</div>
+<div id="plEd" hidden><div class="pedbox">
+ <b id="plEdT">New block</b>
+ <input id="plEdTx" maxlength="80" placeholder="Task name (e.g. Math revision)">
+ <div class="pedrow"><label>From <input type="time" id="plEdS" step="900"></label><label>To <input type="time" id="plEdE" step="900"></label></div>
+ <label class="pedck"><input type="checkbox" id="plEdD"> Mark this block done</label>
+ <div class="dbt"><button id="plEdDel" class="sbtn">Delete</button><button id="plEdNo" class="sbtn">Cancel</button><button id="plEdOk" class="sbtn">Save</button></div>
+</div></div>
+
 <div id="viewSet" hidden>
 <div class="wcard"><b>🎬 Long break reward</b><label class="wl"><input type="checkbox" id="rwOn"> Earn long breaks from real study time</label>
 <div class="srow"><span>Every</span><input type="number" id="rwH" min="0.5" max="12" step="0.5"><span>hours of study</span></div>
@@ -2226,9 +2239,249 @@ function showSplash(force){
 /* ---- boot / hash routing ---- */
 var h=(location.hash||"").replace("#","");
 if(h==="splash")showSplash(true);
-else if(h){nav({tasks:"plan",home:"home",timer:"timer",watch:"watch",settings:"set",backlog:"bl",week:"wk"}[h]||"home")}
+else if(h){nav({tasks:"plan",home:"home",timer:"timer",watch:"watch",settings:"set",backlog:"bl",week:"wk",day:"day"}[h]||"home")}
 else showSplash(false);
 })();
+</script>
+<style id="dayview-css">
+/* ================= DAY PLANNER (Google-Calendar style, 15-min rows) ================= */
+body.hm #viewDay{display:none!important}
+#segT{overflow-x:auto}
+#segT button{white-space:nowrap}
+@media(max-width:480px){#segT button{font-size:.78rem;padding:9px 3px}}
+#viewDay{margin-top:6px}
+.dvbar{display:flex;align-items:center;gap:8px;margin:6px 0}
+#dvTitle{flex:1;text-align:center;font-family:"Playfair Display",Georgia,serif;font-size:1.02rem}
+.dvsub{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;font-size:.78rem;color:var(--mut)}
+.dvsub input[type=date]{margin:0;padding:5px 8px;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;font:inherit;font-size:.78rem}
+#dvSum{flex:1 1 100%;line-height:1.5}
+.dvhint{font-size:.74rem;color:var(--mut);margin:0 0 8px;line-height:1.5}
+.dvwrap{display:grid;grid-template-columns:56px 1fr;background:var(--card);border:1px solid var(--bd);border-radius:18px;overflow:hidden;--rh:22px;box-shadow:0 12px 32px rgba(0,0,0,.30)}
+.dvl{height:var(--rh);font-size:.6rem;color:var(--mut);text-align:right;padding-right:8px;line-height:var(--rh);white-space:nowrap}
+.dvl.h{color:#aeb6c2;font-weight:600;font-size:.66rem}
+.dvgrid{position:relative;z-index:0;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:crosshair;border-left:1px solid var(--bd)}
+.dvcell{height:var(--rh);border-bottom:1px solid rgba(255,255,255,.05)}
+.dvcell.h{border-bottom-color:rgba(255,255,255,.14)}
+.dvblocks{position:absolute;inset:0;pointer-events:none}
+.dvblocks .b{position:absolute;left:4px;right:6px;pointer-events:auto;overflow:hidden;border-radius:9px;padding:3px 7px;
+ background:#221c12;border:1px solid #3a3020;border-left:3px solid var(--c,var(--brand));cursor:pointer}
+.dvblocks .b b{display:block;font-size:.76rem;font-weight:600;color:#ffd9a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.dvblocks .b small{font-size:.64rem;color:var(--mut);display:block;line-height:1.2}
+.dvblocks .b.tiny{padding:1px 6px}
+.dvblocks .b.tiny b{font-size:.72rem;line-height:1.2}
+.dvblocks .b.tiny small{display:none}
+.dvblocks .b.done{opacity:.5}
+.dvblocks .b.done b{text-decoration:line-through}
+.dvsel{position:absolute;left:2px;right:4px;background:rgba(240,180,94,.20);border:1px dashed var(--brand);border-radius:8px;
+ font-size:.62rem;color:#ffd9a0;padding:2px 6px;pointer-events:none;z-index:3;overflow:hidden}
+.dvnow{position:absolute;left:0;right:0;height:0;border-top:2px solid #ef6a5f;z-index:4;pointer-events:none}
+.dvnow::before{content:"";position:absolute;left:-4px;top:-5px;width:8px;height:8px;border-radius:50%;background:#ef6a5f}
+#plEd{position:fixed;left:0;right:0;bottom:0;z-index:55;display:flex;justify-content:center;padding:0 10px calc(10px + env(safe-area-inset-bottom,0px))}
+.pedbox{width:100%;max-width:520px;background:var(--card);border:1px solid var(--ac);border-radius:18px;padding:14px;box-shadow:0 -8px 40px rgba(0,0,0,.5)}
+.pedbox>b{display:block;font-family:"Sora",sans-serif;font-size:.92rem;color:var(--brand2);margin-bottom:10px}
+#plEdTx{width:100%;margin:0 0 10px;padding:11px 12px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:12px;font:inherit;font-size:.95rem}
+.pedrow{display:flex;gap:10px;margin-bottom:10px}
+.pedrow label{flex:1;font-size:.72rem;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+.pedrow input[type=time]{width:100%;padding:9px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;font:inherit;font-size:.85rem}
+.pedck{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--mut);margin-bottom:12px}
+:root[data-theme="light"] .dvcell{border-bottom-color:rgba(0,0,0,.06)}
+:root[data-theme="light"] .dvcell.h{border-bottom-color:rgba(0,0,0,.14)}
+:root[data-theme="light"] .dvl.h{color:#3e434b}
+:root[data-theme="light"] .dvblocks .b{background:#fff6e6;border-color:#e8cfa4}
+:root[data-theme="light"] .dvblocks .b b{color:#7a5216}
+:root[data-theme="light"] .dvsel{color:#7a5216}
+@media(max-width:420px){.dvwrap{grid-template-columns:48px 1fr}.dvl{padding-right:6px}}
+
+</style>
+<script>
+/* ================= DAY PLANNER (Google-Calendar style, 12 AM -> 12 AM, 15-min rows) ================= */
+(function(){
+var PK="studyPlannerV1",P={ts:0,blocks:{}},PDOC=null,ptm=null;
+try{var _p=JSON.parse(localStorage.getItem(PK)||"null");if(_p&&_p.blocks)P=Object.assign({ts:0,blocks:{}},_p)}catch(e){}
+var DAY=TODAY,RH=22,sel=null,touchStart=null,lpTimer=null,edId=null,edNew=false;
+
+function pday(){if(!P.blocks[DAY])P.blocks[DAY]=[];return P.blocks[DAY]}
+function psave(){P.ts=Date.now();var j=JSON.stringify(P);try{localStorage.setItem(PK,j)}catch(e){}
+ if(PDOC){clearTimeout(ptm);ptm=setTimeout(function(){PDOC.set({json:j}).catch(function(){})},600)}}
+function ploadCloud(){PDOC.get().then(function(s){var d=s.exists&&s.data();
+ if(d&&d.json){var r=JSON.parse(d.json);if((r.ts||0)>(P.ts||0)){P=Object.assign({ts:0,blocks:{}},r);try{localStorage.setItem(PK,d.json)}catch(e){}dvRender()}}
+ else psave()}).catch(function(){})}
+(function(){try{if(!(window.claude&&window.claude.use))return;
+ claude.use("user").then(function(u){if(!u)return null;return u.id().then(function(id){if(!id)return null;
+  return claude.use("db").then(function(db){if(!db)return null;PDOC=db.collection("data/users/"+id).doc("planner");ploadCloud()})})}).catch(function(){});
+}catch(e){}})();
+
+function p2(n){return String(n).padStart(2,"0")}
+function t12(m){m=((m%1440)+1440)%1440;var h=Math.floor(m/60),mi=m%60,ap=h<12?"AM":"PM",h12=h%12;if(h12===0)h12=12;return h12+":"+p2(mi)+" "+ap}
+function hlab(m){var h=Math.floor(m/60)%24,ap=h<12?"AM":"PM",h12=h%12;if(h12===0)h12=12;return h12+" "+ap}
+function toHM(m){return p2(Math.floor(m/60))+":"+p2(m%60)}
+function fromHM(v){var a=(v||"0:0").split(":");return (parseInt(a[0],10)||0)*60+(parseInt(a[1],10)||0)}
+
+function dvBuild(){
+ var g=$("dvGrid"),gu=$("dvGut");if(!g||!gu||g.dataset.b)return;
+ var i,m,c,l;
+ for(i=0;i<96;i++){m=i*15;
+  c=document.createElement("div");c.className="dvcell"+(m%60===0?" h":"");c.dataset.i=i;g.appendChild(c);
+  l=document.createElement("div");l.className="dvl"+(m%60===0?" h":"");l.textContent=(m%60===0)?hlab(m):":"+p2(m%60);gu.appendChild(l)}
+ var b=document.createElement("div");b.className="dvblocks";b.id="dvBlocks";g.appendChild(b);
+ var s=document.createElement("div");s.className="dvsel";s.id="dvSel";s.hidden=true;g.appendChild(s);
+ var n=document.createElement("div");n.className="dvnow";n.id="dvNow";g.appendChild(n);
+ g.dataset.b="1";
+}
+function dvRender(){
+ dvBuild();
+ var c0=$("dvGrid").firstChild;if(c0&&c0.getBoundingClientRect().height>4)RH=c0.getBoundingClientRect().height;
+ $("dvDate").value=DAY;
+ $("dvTitle").textContent=fmt(DAY)+(DAY===TODAY?" · Today":"");
+ var arr=pday().slice().sort(function(a,b){return a.s-b.s});
+ var bx=$("dvBlocks");bx.innerHTML="";
+ var tot=0,dn=0;
+ arr.forEach(function(b){tot+=(b.e-b.s);if(b.done)dn++;
+  var d=document.createElement("div");d.className="b"+(b.done?" done":"");
+  d.style.top=(b.s/15*RH)+"px";
+  d.style.height=Math.max(RH-2,(b.e-b.s)/15*RH-2)+"px";
+  var k=subj(b.text);if(k)d.style.setProperty("--c",SUB[k]);
+  d.innerHTML="<b></b><small></small>";
+  d.querySelector("b").textContent=b.text||"Block";
+  d.querySelector("small").textContent=t12(b.s)+" – "+t12(b.e)+(b.done?" ✓":"");
+  d.dataset.id=b.id;
+  if((b.e-b.s)<=30)d.classList.add("tiny");
+  d.addEventListener("click",function(ev){ev.stopPropagation();dvEdit(b.id,false)});
+  bx.appendChild(d)});
+ $("dvSum").textContent=arr.length?(arr.length+" block"+(arr.length===1?"":"s")+" · "+hm(tot*60)+" planned"+(dn?" · "+dn+" done":"")):"Drag across the boxes to make a block, then type the task · اسحب على المربعات واكتب اسم التاسك · on a phone, tap a box.";
+ dvNow();
+}
+function dvNow(){var n=$("dvNow");if(!n)return;
+ if(DAY!==TODAY){n.hidden=true;return}
+ var d=new Date(),m=d.getHours()*60+d.getMinutes();
+ n.hidden=false;n.style.top=(m/15*RH)+"px";
+}
+function idxAt(y){var r=$("dvGrid").getBoundingClientRect();var h=r.height/96;var i=Math.floor((y-r.top)/h);return Math.max(0,Math.min(95,i))}
+function dvSelDraw(){var s=$("dvSel");if(!s)return;
+ if(!sel){s.hidden=true;return}
+ var a=Math.min(sel.a,sel.b),b=Math.max(sel.a,sel.b);
+ s.hidden=false;s.style.top=(a*RH)+"px";s.style.height=((b-a+1)*RH)+"px";
+ s.textContent=t12(a*15)+" – "+t12((b+1)*15);
+}
+function dvCut(s,e,keepId){var out=[];
+ pday().forEach(function(b){
+  if(b.id===keepId){out.push(b);return}
+  if(b.e<=s||b.s>=e){out.push(b);return}
+  if(b.s<s&&b.e>e){out.push({id:b.id,s:b.s,e:s,text:b.text,done:b.done});out.push({id:uid(),s:e,e:b.e,text:b.text,done:b.done});return}
+  if(b.s<s){b.e=s;out.push(b);return}
+  if(b.e>e){b.s=e;out.push(b);return}
+ });
+ P.blocks[DAY]=out;
+}
+function dvNew(s,e){e=Math.min(1440,Math.max(s+15,e));s=Math.max(0,Math.min(1425,s));
+ dvCut(s,e,null);
+ var b={id:uid(),s:s,e:e,text:"",done:false};
+ pday().push(b);psave();dvRender();dvEdit(b.id,true);
+}
+function dvEdit(id,isNew){var b=pday().filter(function(x){return x.id===id})[0];if(!b)return;
+ edId=id;edNew=!!isNew;
+ $("plEdT").textContent=isNew?"New block":"Edit block";
+ $("plEdTx").value=b.text||"";
+ $("plEdS").value=toHM(b.s);
+ $("plEdE").value=(b.e>=1440?"00:00":toHM(b.e));
+ $("plEdD").checked=!!b.done;
+ $("plEd").hidden=false;
+ setTimeout(function(){try{$("plEdTx").focus()}catch(e){}},60);
+}
+function dvEdClose(){var id=edId;
+ if(edNew&&id){var b=pday().filter(function(x){return x.id===id})[0];
+  if(b&&!b.text){P.blocks[DAY]=pday().filter(function(x){return x.id!==id});psave()}}
+ edId=null;edNew=false;$("plEd").hidden=true;dvRender();
+}
+function dvEdSave(){var b=pday().filter(function(x){return x.id===edId})[0];if(!b){dvEdClose();return}
+ var s=fromHM($("plEdS").value),e=fromHM($("plEdE").value);
+ if(e===0&&s>0)e=1440;
+ if(!(e>s)){toast("The end time must be after the start time.");return}
+ b.text=($("plEdTx").value||"").trim()||"Block";
+ b.s=s;b.e=e;b.done=$("plEdD").checked;
+ dvCut(s,e,edId);psave();edId=null;edNew=false;$("plEd").hidden=true;dvRender();
+}
+function dvEdDel(){var id=edId;edNew=false;edId=null;
+ P.blocks[DAY]=pday().filter(function(x){return x.id!==id});
+ psave();$("plEd").hidden=true;dvRender();
+}
+function dvScrollNow(){var g=$("dvGrid");if(!g)return;
+ var m;if(DAY===TODAY){var d=new Date();m=d.getHours()*60+d.getMinutes()}else m=6*60;
+ var y=g.getBoundingClientRect().top+window.pageYOffset+(m/15*RH)-70;
+ try{window.scrollTo({top:Math.max(0,y),behavior:"smooth"})}catch(e){window.scrollTo(0,Math.max(0,y))}
+}
+
+/* ---- pointer: mouse drag selects, touch tap adds 30 min, touch long-press drag selects ---- */
+(function(){
+ var g=$("dvGrid");
+ g.addEventListener("pointerdown",function(e){
+  if(e.target&&e.target.closest&&e.target.closest(".b"))return;
+  if(sel)return;
+  var i=idxAt(e.clientY);
+  if(e.pointerType==="touch"||e.pointerType==="pen"){
+   touchStart={i:i,x:e.clientX,y:e.clientY,pid:e.pointerId};
+   lpTimer=setTimeout(function(){if(!touchStart)return;
+    sel={a:i,b:i};dvSelDraw();try{g.setPointerCapture(touchStart.pid)}catch(x){}},380);
+   return;
+  }
+  sel={a:i,b:i};dvSelDraw();
+  try{g.setPointerCapture(e.pointerId)}catch(x){}
+ });
+ g.addEventListener("pointermove",function(e){
+  if(sel){sel.b=idxAt(e.clientY);dvSelDraw();return}
+  if(touchStart&&(Math.abs(e.clientX-touchStart.x)>9||Math.abs(e.clientY-touchStart.y)>9)){clearTimeout(lpTimer);touchStart=null}
+ });
+ function endPtr(){
+  clearTimeout(lpTimer);
+  if(sel){var a=Math.min(sel.a,sel.b),b=Math.max(sel.a,sel.b);
+   sel=null;touchStart=null;dvSelDraw();dvNew(a*15,Math.min(1440,(b+1)*15));return}
+  if(touchStart){var i=touchStart.i;touchStart=null;dvNew(i*15,Math.min(1440,i*15+30))}
+ }
+ g.addEventListener("pointerup",endPtr);
+ g.addEventListener("pointercancel",function(){clearTimeout(lpTimer);sel=null;touchStart=null;dvSelDraw()});
+ window.addEventListener("pointermove",function(e){
+  if(!sel)return;var vh=window.innerHeight;
+  if(e.clientY>vh-70)window.scrollBy(0,14);else if(e.clientY<90)window.scrollBy(0,-14);
+ });
+})();
+
+/* ---- day controls ---- */
+$("dvPrev").onclick=function(){DAY=addD(DAY,-1);dvRender()};
+$("dvNext").onclick=function(){DAY=addD(DAY,1);dvRender()};
+$("dvToday").onclick=function(){DAY=TODAY;dvRender();dvScrollNow()};
+$("dvNowBtn").onclick=dvScrollNow;
+$("dvDate").onchange=function(){if(this.value){DAY=this.value;dvRender();dvScrollNow()}};
+$("plEdOk").onclick=dvEdSave;
+$("plEdNo").onclick=dvEdClose;
+$("plEdDel").onclick=dvEdDel;
+$("plEdTx").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();dvEdSave()}});
+
+/* ---- nav entries ---- */
+(function(){
+ var seg=$("segT");
+ if(seg){var b=document.createElement("button");b.textContent="📅 Day";b.dataset.v="day";b.onclick=function(){nav("day")};seg.appendChild(b)}
+ var bn=$("bnav");
+ if(bn){var c=document.createElement("button");c.dataset.v="day";c.innerHTML="<i>📅</i>Day";c.onclick=function(){nav("day")};
+  if(bn.children[4])bn.insertBefore(c,bn.children[4]);else bn.appendChild(c)}
+})();
+var _st=showTab;
+showTab=function(n){
+ _st(n);
+ var v=$("viewDay");if(v)v.hidden=(n!=="day");
+ if(n==="day"){
+  var h=document.querySelector("h1");if(h)h.textContent="Day plan";
+  var seg=$("segT");if(seg){seg.style.display="flex";[].forEach.call(seg.children,function(b){b.classList.toggle("on",b.dataset.v==="day")})}
+  var bn=$("bnav");if(bn){[].forEach.call(bn.children,function(b){b.classList.toggle("on",b.dataset.v==="day")})}
+  dvRender();
+  setTimeout(dvScrollNow,90);
+ }
+};
+setInterval(function(){if(!$("viewDay").hidden)dvNow()},30000);
+if((location.hash||"").replace("#","")==="day")showTab("day");
+dvBuild();
+window.dvRender=dvRender;
+})();
+
 </script>
 </body>
 </html>
